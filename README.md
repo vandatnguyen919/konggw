@@ -1,7 +1,7 @@
 # Kong Gateway hybrid playground
 
-This playground models a NAB-inspired enterprise topology without pretending
-to be NAB infrastructure. A platform team runs one database-backed Kong
+This playground models a XXX-inspired enterprise topology without pretending
+to be XXX infrastructure. A platform team runs one database-backed Kong
 control plane and Kong Manager. Regional or cloud data planes run DB-less and
 receive configuration over a mutually authenticated cluster connection. Two
 service teams own their API definitions in Git and publish them through decK.
