@@ -1,0 +1,7 @@
+certs/*
+!certs/.gitkeep
+.gradle/
+**/build/
+**/bin/
+.idea/
+.vscode/

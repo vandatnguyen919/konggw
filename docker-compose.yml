@@ -1,0 +1,183 @@
+services:
+  postgres:
+    image: postgres:16.4
+    environment:
+      POSTGRES_USER: kong
+      POSTGRES_PASSWORD: kong
+      POSTGRES_DB: kong
+    volumes:
+      - kong-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kong -d kong"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  cert-init:
+    image: alpine:3.22
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        if [ ! -s /certs/cluster.crt ] || [ ! -s /certs/cluster.key ]; then
+          apk add --no-cache openssl
+          openssl req -new -x509 -nodes -newkey rsa:2048 \
+            -keyout /certs/cluster.key -out /certs/cluster.crt -days 365 \
+            -subj "/CN=kong_clustering"
+        fi
+        chmod 644 /certs/cluster.key
+    volumes:
+      - ./certs:/certs
+    restart: "no"
+
+  kong-migrations:
+    image: kong/kong-gateway:3.11.0.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: postgres
+      KONG_PG_DATABASE: kong
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
+    command: /bin/sh -c "kong migrations bootstrap || kong migrations up"
+    restart: "no"
+
+  products-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: products-service
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/products > /dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  orders-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: orders-service
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/orders > /dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  kong-cp:
+    image: kong/kong-gateway:3.11.0.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kong-migrations:
+        condition: service_completed_successfully
+      cert-init:
+        condition: service_completed_successfully
+    environment:
+      KONG_ROLE: control_plane
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: postgres
+      KONG_PG_DATABASE: kong
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_ADMIN_GUI_LISTEN: 0.0.0.0:8002
+      KONG_ADMIN_GUI_URL: http://localhost:8002
+      KONG_ADMIN_GUI_PATH: /
+      KONG_CLUSTER_LISTEN: 0.0.0.0:8005
+      KONG_CLUSTER_TELEMETRY_LISTEN: 0.0.0.0:8006
+      KONG_CLUSTER_MTLS: shared
+      KONG_CLUSTER_CERT: /certs/cluster.crt
+      KONG_CLUSTER_CERT_KEY: /certs/cluster.key
+      KONG_PROXY_LISTEN: "off"
+      KONG_PORTAL: "off"
+    volumes:
+      - ./certs:/certs:ro
+    ports:
+      - "127.0.0.1:8001:8001"
+      - "127.0.0.1:8002:8002"
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  kong-dp-products:
+    image: kong/kong-gateway:3.11.0.0
+    depends_on:
+      kong-cp:
+        condition: service_healthy
+      cert-init:
+        condition: service_completed_successfully
+      products-service:
+        condition: service_healthy
+      orders-service:
+        condition: service_healthy
+    environment:
+      KONG_ROLE: data_plane
+      KONG_DATABASE: "off"
+      KONG_CLUSTER_CONTROL_PLANE: kong-cp:8005
+      KONG_CLUSTER_TELEMETRY_ENDPOINT: kong-cp:8006
+      KONG_CLUSTER_MTLS: shared
+      KONG_CLUSTER_CERT: /certs/cluster.crt
+      KONG_CLUSTER_CERT_KEY: /certs/cluster.key
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_ADMIN_LISTEN: "off"
+      KONG_NGINX_WORKER_PROCESSES: "1"
+    volumes:
+      - ./certs:/certs:ro
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  kong-dp-orders:
+    image: kong/kong-gateway:3.11.0.0
+    depends_on:
+      kong-cp:
+        condition: service_healthy
+      cert-init:
+        condition: service_completed_successfully
+      products-service:
+        condition: service_healthy
+      orders-service:
+        condition: service_healthy
+    environment:
+      KONG_ROLE: data_plane
+      KONG_DATABASE: "off"
+      KONG_CLUSTER_CONTROL_PLANE: kong-cp:8005
+      KONG_CLUSTER_TELEMETRY_ENDPOINT: kong-cp:8006
+      KONG_CLUSTER_MTLS: shared
+      KONG_CLUSTER_CERT: /certs/cluster.crt
+      KONG_CLUSTER_CERT_KEY: /certs/cluster.key
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_ADMIN_LISTEN: "off"
+      KONG_NGINX_WORKER_PROCESSES: "1"
+    volumes:
+      - ./certs:/certs:ro
+    ports:
+      - "127.0.0.1:8010:8000"
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  deck:
+    image: kong/deck:v1.68.0
+    profiles: ["tools"]
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    entrypoint: ["deck"]
+
+volumes:
+  kong-postgres:

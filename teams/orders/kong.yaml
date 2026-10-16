@@ -1,0 +1,28 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: orders-service
+    host: orders-service
+    port: 8080
+    protocol: http
+    path: /orders
+    tags:
+      - team:orders
+    routes:
+      - name: orders-route
+        paths:
+          - /api/orders
+        methods:
+          - GET
+          - POST
+        strip_path: true
+        tags:
+          - team:orders
+        plugins:
+          - name: key-auth
+            tags:
+              - team:orders
+            config:
+              key_names:
+                - X-API-Key

@@ -1,0 +1,25 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: products-service
+    host: products-service
+    port: 8080
+    protocol: http
+    path: /products
+    tags:
+      - team:products
+    routes:
+      - name: products-route
+        paths:
+          - /api/products
+        strip_path: true
+        tags:
+          - team:products
+        plugins:
+          - name: key-auth
+            tags:
+              - team:products
+            config:
+              key_names:
+                - X-API-Key

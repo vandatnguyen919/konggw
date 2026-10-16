@@ -1,0 +1,11 @@
+_format_version: "3.0"
+plugins:
+  - name: rate-limiting
+    tags:
+      - owner:platform
+services:
+  - name: bad-service
+    tags:
+      - team:platform-plugin
+    plugins:
+      - name: key-auth

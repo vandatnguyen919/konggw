@@ -1,0 +1,24 @@
+_format_version: "3.0"
+_transform: true
+
+plugins:
+  - name: correlation-id
+    tags:
+      - owner:platform
+    config:
+      header_name: X-Correlation-ID
+      generator: uuid
+      echo_downstream: true
+  - name: rate-limiting
+    tags:
+      - owner:platform
+    config:
+      minute: 3
+      limit_by: consumer
+      policy: local
+  - name: request-size-limiting
+    tags:
+      - owner:platform
+    config:
+      allowed_payload_size: 1
+      size_unit: megabytes

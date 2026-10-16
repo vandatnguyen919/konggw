@@ -1,0 +1,43 @@
+name: Kong configuration
+
+on:
+  pull_request:
+    paths:
+      - "platform/**"
+      - "teams/**"
+      - "scripts/**"
+  push:
+    branches: [main]
+    paths:
+      - "platform/**"
+      - "teams/**"
+      - "scripts/**"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate team files
+        run: |
+          docker run --rm -v "$PWD:/workspace" -w /workspace kong/deck:v1.68.0 \
+            file validate /workspace/teams/products/kong.yaml
+          docker run --rm -v "$PWD:/workspace" -w /workspace kong/deck:v1.68.0 \
+            file validate /workspace/teams/orders/kong.yaml
+      - name: Run governance policy
+        run: bash scripts/policy-fixture-test.sh
+
+  publish:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish through decK
+        env:
+          DECK_KONG_ADDR: ${{ secrets.KONG_ADMIN_URL }}
+        run: |
+          test -n "$DECK_KONG_ADDR"
+          bash scripts/sync-platform.sh
+          bash scripts/sync-team.sh products
+          bash scripts/sync-team.sh orders

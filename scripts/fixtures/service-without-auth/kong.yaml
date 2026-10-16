@@ -1,0 +1,6 @@
+_format_version: "3.0"
+services:
+  - name: bad-service
+    host: products-service
+    tags:
+      - team:service-without-auth
