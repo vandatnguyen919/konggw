@@ -107,11 +107,18 @@ Open **http://localhost:8002** and review these pages:
    plugins tagged `owner:platform`.
 4. **Consumers**: the runtime consumer created by
    `scripts/provision-consumer.sh`, including its API key credential.
-5. **Status / Clustering**: the two connected data planes. The exact Manager
-   navigation label can vary by Kong Gateway build.
 
-The page list and what appears there is **judgment pending** until you inspect
-the running GUI.
+Standard open-source and enterprise Kong Manager does not include a dedicated
+**Status / Clustering** tab or dashboard. Use the control plane Admin API to
+verify the hybrid connection instead:
+
+```bash
+curl -fsS http://localhost:8001/clustering/data-planes
+curl -fsS http://localhost:8001/clustering/status
+```
+
+The page list and what appears there should still be confirmed in the running
+GUI; navigation labels can vary by Kong Gateway build.
 
 ## Resilience demo
 
